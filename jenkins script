@@ -1,0 +1,34 @@
+#!/bin/bash
+# 1. SETUP 4GB SWAP (Safety net for memory)
+sudo dd if=/dev/zero of=/swapfile bs=128M count=32
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
+
+# 2. MOUNT 4GB ON /tmp AS TMPFS
+# This creates a 4GB RAM-disk for temporary build files
+sudo mount -t tmpfs -o size=4G,mode=1777 tmpfs /tmp
+echo 'tmpfs /tmp tmpfs size=4G,mode=1777 0 0' | sudo tee -a /etc/fstab
+
+# 3. INSTALL TOOLS (Java 21 & Node.js)
+sudo yum update -y
+sudo yum install git wget unzip zip java-21-amazon-corretto-devel -y
+curl -sL https://nodesource.com | sudo bash -
+sudo yum install -y nodejs
+
+# 4. INSTALL JENKINS
+sudo wget -O /etc/yum.repos.d/jenkins.repo https://jenkins.io
+sudo rpm --import https://jenkins.io
+sudo yum install jenkins -y
+sudo systemctl enable --now jenkins
+
+# 5. INSTALL DOCKER & TOOLS
+sudo yum install docker -y
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user
+sudo usermod -aG docker jenkins
+
+# 6. RUN SONAR & NEXUS
+docker run -d --name sonarqube -p 9000:9000 sonarqube:lts-community
+docker run -d --name nexus -p 8081:8081 sonatype/nexus3
