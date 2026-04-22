@@ -1,0 +1,42 @@
+# Step 1: Increase /tmp size to 4GB (important for Jenkins builds)
+sudo mount -o remount,size=4G /tmp
+
+# Step 2: Update system
+sudo yum update -y
+
+# Step 3: Add Jenkins repo
+sudo wget -O /etc/yum.repos.d/jenkins.repo \
+https://pkg.jenkins.io/rpm-stable/jenkins.repo
+
+# Step 4: Import Jenkins key
+sudo rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key
+
+# Step 5: Upgrade packages
+sudo yum upgrade -y
+
+# Step 6: Install Java 21 (Amazon Corretto)
+sudo yum install java-21-amazon-corretto -y
+
+# Step 7: Set JAVA_HOME globally
+echo "export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto" | sudo tee -a /etc/profile
+echo "export PATH=\$JAVA_HOME/bin:\$PATH" | sudo tee -a /etc/profile
+source /etc/profile
+
+# Step 8: Install Git (required for Jenkins pipelines)
+sudo yum install git -y
+
+# Step 9: Install Maven (latest compatible with Java 21)
+sudo yum install maven -y
+
+# Step 10: Verify installations
+java -version
+git --version
+mvn -version
+
+# Step 11: Install Jenkins
+sudo yum install jenkins -y
+
+# Step 12: Start Jenkins
+sudo systemctl enable jenkins
+sudo systemctl start jenkins
+sudo systemctl status jenkins
