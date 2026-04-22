@@ -1,0 +1,93 @@
+# ================================
+# SYSTEM PREP
+# ================================
+
+sudo mount -o remount,size=4G /tmp
+sudo yum update -y
+
+# ================================
+# JENKINS SETUP
+# ================================
+
+sudo wget -O /etc/yum.repos.d/jenkins.repo \
+https://pkg.jenkins.io/rpm-stable/jenkins.repo
+
+sudo rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key
+
+sudo yum upgrade -y
+
+# ================================
+# JAVA 21 (COMMON FOR ALL TOOLS)
+# ================================
+
+sudo yum install java-21-amazon-corretto -y
+
+echo "export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto" | sudo tee -a /etc/profile
+echo "export PATH=\$JAVA_HOME/bin:\$PATH" | sudo tee -a /etc/profile
+source /etc/profile
+
+# ================================
+# DEVOPS TOOLS
+# ================================
+
+# Git
+sudo yum install git -y
+
+# Maven
+sudo yum install maven -y
+
+# Docker
+sudo yum install docker -y
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Allow Jenkins user to access Docker
+sudo usermod -aG docker jenkins
+sudo usermod -aG docker ec2-user
+
+# ================================
+# TRIVY (SECURITY SCANNER)
+# ================================
+
+sudo rpm -ivh https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.rpm
+
+# ================================
+# KUBECTL (Kubernetes CLI)
+# ================================
+
+curl -LO "https://dl.k8s.io/release/$(curl -L -s \
+https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+# ================================
+# SONARQUBE (RUN AS DOCKER CONTAINER)
+# ================================
+
+docker run -d \
+--name sonarqube \
+-p 9000:9000 \
+sonarqube:lts-community
+
+# ================================
+# JENKINS INSTALL
+# ================================
+
+sudo yum install jenkins -y
+
+sudo systemctl enable jenkins
+sudo systemctl start jenkins
+
+# ================================
+# VERIFY EVERYTHING
+# ================================
+
+java -version
+git --version
+mvn -version
+docker --version
+kubectl version --client
+trivy --version
+
+sudo systemctl status jenkins
