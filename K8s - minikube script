@@ -1,0 +1,85 @@
+#!/bin/bash
+set -e
+
+echo "🚀 Updating system..."
+sudo dnf update -y
+
+echo "🚀 Installing base tools..."
+sudo dnf install -y wget git conntrack tar docker
+
+echo "🚀 Starting Docker..."
+sudo systemctl enable --now docker
+
+# Add user to docker group
+sudo usermod -aG docker ec2-user
+
+echo "🚀 Installing kubectl..."
+KVER=$(wget -qO- https://dl.k8s.io/release/stable.txt)
+wget -q https://dl.k8s.io/release/${KVER}/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+echo "🚀 Installing Minikube..."
+wget -q https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+chmod +x minikube-linux-amd64
+sudo mv minikube-linux-amd64 /usr/local/bin/minikube
+
+echo "🚀 Installing cri-dockerd..."
+VER=$(wget -qO- https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest | grep tag_name | cut -d '"' -f 4)
+wget -q https://github.com/Mirantis/cri-dockerd/releases/download/${VER}/cri-dockerd-${VER#v}.amd64.tgz
+tar -xzf cri-dockerd-${VER#v}.amd64.tgz
+sudo mv cri-dockerd/cri-dockerd /usr/local/bin/
+
+echo "🚀 Configuring cri-dockerd..."
+
+sudo tee /etc/systemd/system/cri-docker.service > /dev/null <<EOF
+[Unit]
+Description=CRI Interface for Docker
+After=docker.service
+Requires=docker.service
+
+[Service]
+ExecStart=/usr/local/bin/cri-dockerd
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo tee /etc/systemd/system/cri-docker.socket > /dev/null <<EOF
+[Unit]
+Description=CRI Docker Socket
+
+[Socket]
+ListenStream=/var/run/cri-dockerd.sock
+
+[Install]
+WantedBy=sockets.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now cri-docker.socket
+sudo systemctl enable cri-docker.service
+
+echo "🚀 Starting Minikube (OPTIMIZED)..."
+
+minikube start \
+  --driver=docker \
+  --container-runtime=docker \
+  --memory=2200 \
+  --cpus=2 \
+  --kubernetes-version=v1.28.0
+
+echo "🚀 Fixing context..."
+minikube update-context
+
+echo "🚀 Disabling heavy addons..."
+minikube addons disable dashboard || true
+minikube addons disable metrics-server || true
+
+echo "🚀 Verifying cluster..."
+kubectl get nodes
+kubectl get pods -A
+
+echo "🎉 SUCCESS: Kubernetes cluster is stable & ready!"
+echo "⚠️ Now logout & login again for docker permissions"
